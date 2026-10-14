@@ -68,13 +68,14 @@ When asked to build an ingestion pipeline for a dataset:
 
 ## 3. Standard Deployment Commands (`deploy.sh`)
 
-Every generated pipeline should include deployment commands matching this pattern:
+Every generated pipeline should include deployment commands matching this pattern (ensuring `--attempt-deadline` matches `--timeout` and using create-or-update for Cloud Scheduler):
 
 ```bash
 #!/usr/bin/env bash
 set -e
 
-PROJECT_ID="${GCP_PROJECT:-your-project-id}"
+DEFAULT_PROJECT=$(gcloud config get-value project 2>/dev/null || echo "your-project-id")
+PROJECT_ID="${GCP_PROJECT:-${DEFAULT_PROJECT}}"
 REGION="${GCP_REGION:-us-central1}"
 FUNCTION_NAME="ingest-<source_name>"
 SCHEDULER_JOB_NAME="trigger-${FUNCTION_NAME}"
@@ -89,18 +90,42 @@ gcloud functions deploy "${FUNCTION_NAME}" \
     --entry-point="<ENTRYPOINT_NAME>" \
     --trigger-http \
     --no-allow-unauthenticated \
-    --memory=512MiB \
-    --timeout=300s \
+    --memory=1GiB \
+    --timeout=540s \
     --set-env-vars="GCP_PROJECT=${PROJECT_ID},GCS_BUCKET=my-lake-raw,BQ_DATASET=public_data,BQ_TABLE=<TABLE_NAME>"
 
-# 2. Schedule via Cloud Scheduler
+# 2. Schedule via Cloud Scheduler (create or update)
 FUNCTION_URI=$(gcloud functions describe "${FUNCTION_NAME}" --gen2 --region="${REGION}" --format='value(serviceConfig.uri)')
 
 gcloud scheduler jobs create http "${SCHEDULER_JOB_NAME}" \
     --location="${REGION}" \
     --schedule="${CRON_SCHEDULE}" \
     --time-zone="UTC" \
+    --attempt-deadline=540s \
+    --uri="${FUNCTION_URI}" \
+    --http-method=POST \
+    --oidc-service-account-email="${PROJECT_ID}@appspot.gserviceaccount.com" \
+    || gcloud scheduler jobs update http "${SCHEDULER_JOB_NAME}" \
+    --location="${REGION}" \
+    --schedule="${CRON_SCHEDULE}" \
+    --time-zone="UTC" \
+    --attempt-deadline=540s \
     --uri="${FUNCTION_URI}" \
     --http-method=POST \
     --oidc-service-account-email="${PROJECT_ID}@appspot.gserviceaccount.com"
+```
+
+---
+
+## 4. GCP Agent Registry Registration
+
+To register the deployed ingestion service in **GCP Agent Registry** for discovery across agents:
+
+```bash
+gcloud agent-registry services create bq-public-data-ingestion \
+    --location=global \
+    --display-name="BigQuery Public Data Ingestion Skill & Pipeline" \
+    --description="Production-grade GCP data ingestion skill and serverless pipeline for public datasets." \
+    --agent-spec-type=no-spec \
+    --interfaces="url=${FUNCTION_URI},protocolBinding=http-json"
 ```

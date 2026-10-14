@@ -34,7 +34,7 @@ flowchart LR
 ### Key Engineering Guardrails
 * **Memory-Safe Chunked Streaming:** Datasets are streamed via HTTP directly to GCS using `blob.open("wb")` in 8MB chunks, completely preventing out-of-memory errors on large multi-gigabyte files.
 * **Atomic BigQuery Loads:** Replaces expensive and fragile streaming inserts with native BigQuery `LoadJob`s (`load_table_from_uri`) for transactional, zero-cost loading.
-* **Smart Partitioning & Write Dispositions:** Snapshot lists (OFAC, CISA KEV) default to `WRITE_TRUNCATE`; event series (PortWatch, AGSI+, Weather) default to `WRITE_APPEND` partitioned by observation date.
+* **Smart Partitioning & Idempotent Deduplication:** Snapshot lists (OFAC, CISA KEV) default to `WRITE_TRUNCATE`; incremental time-series (PortWatch, AGSI+, Weather) default to `WRITE_APPEND` partitioned by observation date, paired with post-load idempotent deduplication on `(date, entity_id)` keeping the latest `_ingested_at` timestamp so rolling lookback windows (`days=14`) never create duplicate rows.
 * **Secure Secrets:** API tokens are managed via Google Secret Manager and injected at runtime.
 
 ---
@@ -115,10 +115,10 @@ Once installed, simply prompt your agent to generate an ingestion pipeline for a
   > *"Scaffold BigQuery ingestion pipelines for **IMF, ECB, and BIS** using the `bq-public-data-ingestion` skill."*
 
 The agent will automatically create:
-* `main.py`: Cloud Function entrypoint with retry session and memory-efficient streaming.
+* `main.py`: Cloud Function entrypoint with retry session, memory-efficient streaming, and idempotent deduplication.
 * `requirements.txt`: Pinned, minimal dependencies.
 * `schema.json`: Explicit BigQuery schema with descriptions, partition, and cluster fields.
-* `deploy.sh`: Turnkey `gcloud functions deploy --gen2` and `gcloud scheduler jobs create` script.
+* `deploy.sh`: Turnkey `gcloud functions deploy --gen2` and `gcloud scheduler jobs create/update` script.
 
 ---
 
@@ -136,20 +136,43 @@ bq-public-data-ingestion/
 │   ├── direct_file_ingestion.py      # Archetype A: Static URL / Bulk File template
 │   └── rest_api_ingestion.py         # Archetype B: Authenticated REST API template
 └── examples/
-    └── imf_portwatch/                # Working reference implementation
-        ├── main.py                   # PortWatch ArcGIS FeatureServer extractor
+    ├── imf_portwatch/                # Working reference implementation: IMF PortWatch
+    │   ├── main.py                   # PortWatch ArcGIS FeatureServer extractor + deduplication
+    │   ├── requirements.txt
+    │   ├── schema_chokepoints.json   # 28 Maritime Chokepoints schema
+    │   ├── schema_ports.json         # 2,000+ Global Ports activity schema
+    │   ├── test_local.py             # Local test runner
+    │   └── deploy.sh                 # Cloud Function 2nd Gen + Daily Cloud Scheduler (15:00 UTC)
+    └── opensky_network/              # Working reference implementation: OpenSky ADS-B
+        ├── main.py                   # OpenSky live aircraft state vector extractor
+        ├── ingest_local_to_bq.py     # Zero-dependency local CLI ingestion runner
         ├── requirements.txt
-        ├── schema_chokepoints.json   # 28 Maritime Chokepoints schema
-        ├── schema_ports.json         # 2,000+ Global Ports activity schema
+        ├── schema.json               # Partitioned & clustered aircraft_states schema
         ├── test_local.py             # Local test runner
-        └── deploy.sh                 # Cloud Function 2nd Gen + Cloud Scheduler deployer
+        └── deploy.sh                 # Cloud Function 2nd Gen + Hourly Cloud Scheduler
 ```
 
 ---
 
-## 🚢 Reference Implementation: IMF PortWatch
+## 🚢 Reference Implementations
 
-Check out [`examples/imf_portwatch/`](examples/imf_portwatch/) for a fully working, tested pipeline extracting maritime activity and chokepoint transits (Suez, Panama, Hormuz, Bab el-Mandeb) from the official IMF PortWatch ArcGIS REST services into BigQuery.
+* **IMF PortWatch ([`examples/imf_portwatch/`](examples/imf_portwatch/)):** Extracts daily maritime activity across 2,000+ global ports and 28 strategic chokepoints (Suez, Panama, Hormuz, Bab el-Mandeb) from the official IMF PortWatch ArcGIS REST services into BigQuery on a daily 15:00 UTC schedule with 14-day rolling lookback and idempotent `(date, portid)` deduplication.
+* **OpenSky Network ([`examples/opensky_network/`](examples/opensky_network/)):** Extracts live global ADS-B aircraft state vectors (`aircraft_states`), partitions by `snapshot_date`, and clusters by `origin_country, callsign, icao24`.
+
+---
+
+## 🗂️ Registering in GCP Agent Registry
+
+You can register deployed ingestion endpoints in **GCP Agent Registry** for cross-agent discovery:
+
+```bash
+gcloud agent-registry services create bq-public-data-ingestion \
+  --location=global \
+  --display-name="BigQuery Public Data Ingestion Skill & Pipeline" \
+  --description="Production-grade GCP data ingestion skill and serverless pipeline for public datasets." \
+  --agent-spec-type=no-spec \
+  --interfaces="url=https://<YOUR_CLOUD_FUNCTION_URI>,protocolBinding=http-json"
+```
 
 ---
 

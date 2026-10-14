@@ -1,0 +1,110 @@
+[
+  {
+    "name": "snapshot_time",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "UTC timestamp of the OpenSky server state snapshot"
+  },
+  {
+    "name": "snapshot_date",
+    "type": "DATE",
+    "mode": "REQUIRED",
+    "description": "Partition date derived from snapshot_time"
+  },
+  {
+    "name": "icao24",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Unique ICAO 24-bit transponder address in hex string representation"
+  },
+  {
+    "name": "callsign",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Flight callsign (e.g. BAW123, DLH572) trimmed of trailing whitespace"
+  },
+  {
+    "name": "origin_country",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Country where the aircraft is registered"
+  },
+  {
+    "name": "time_position",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "UTC timestamp of the last position update received"
+  },
+  {
+    "name": "last_contact",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "UTC timestamp of the last message received from this aircraft"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "WGS-84 longitude in decimal degrees"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "WGS-84 latitude in decimal degrees"
+  },
+  {
+    "name": "baro_altitude_m",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "Barometric altitude in meters"
+  },
+  {
+    "name": "on_ground",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE",
+    "description": "True if the aircraft is reporting position on ground"
+  },
+  {
+    "name": "velocity_mps",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "Velocity over ground in meters per second"
+  },
+  {
+    "name": "true_track",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "True track in decimal degrees clockwise from north"
+  },
+  {
+    "name": "vertical_rate_mps",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "Vertical rate in meters per second (positive = climbing, negative = descending)"
+  },
+  {
+    "name": "geo_altitude_m",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "Geometric altitude in meters"
+  },
+  {
+    "name": "squawk",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Transponder code (squawk)"
+  },
+  {
+    "name": "spi",
+    "type": "BOOLEAN",
+    "mode": "NULLABLE",
+    "description": "Special Purpose Indicator (ident triggered by pilot)"
+  },
+  {
+    "name": "position_source",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "Origin of position: 0=ADS-B, 1=ASTERIX, 2=MLAT, 3=FLARM"
+  }
+]
