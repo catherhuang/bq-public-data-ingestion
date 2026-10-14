@@ -2,13 +2,13 @@
 """Run OpenSky ingestion locally and load into BigQuery using native bq/gcloud CLI.
 
 Uses zero external Python dependencies (pure standard library + bq CLI).
-Bypasses OpenSky's cloud provider IP blocking while loading directly into GCP.
+Bypasses OpenSky's cloud provider IP blocking while loading directly into GCP,
+followed by idempotent deduplication on (snapshot_date, icao24).
 """
 
 import json
 import os
 import subprocess
-import sys
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,6 +101,7 @@ def main():
 
     # Step 3: bq load into BigQuery
     table_target = f"{PROJECT_ID}:{BQ_DATASET}.{BQ_TABLE}"
+    table_sql_ref = f"{PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}"
     print("\n==================================================================")
     print(f" Step 3: Executing BigQuery LoadJob into {table_target}...")
     print("==================================================================")
@@ -119,9 +120,45 @@ def main():
     ]
     subprocess.run(bq_cmd, check=True, env=env)
 
+    # Step 4: Idempotent deduplication on (snapshot_date, icao24)
     print("\n==================================================================")
-    print(f" ==> SUCCESS! BigQuery table {table_target} is populated!")
-    print(f"     Total records loaded: {valid_count}")
+    print(f" Step 4: Deduplicating {table_sql_ref} on (snapshot_date, icao24)...")
+    print("==================================================================")
+    dedup_sql = f"""
+    CREATE OR REPLACE TABLE `{table_sql_ref}`
+    PARTITION BY snapshot_date
+    CLUSTER BY origin_country, callsign, icao24
+    AS
+    SELECT * EXCEPT(rn)
+    FROM (
+        SELECT
+            *,
+            ROW_NUMBER() OVER (
+                PARTITION BY snapshot_date, icao24
+                ORDER BY
+                    CASE WHEN callsign IS NOT NULL THEN 1 ELSE 0 END DESC,
+                    snapshot_time DESC
+            ) AS rn
+        FROM `{table_sql_ref}`
+    )
+    WHERE rn = 1
+    """
+    subprocess.run(
+        [
+            "bq",
+            "--project_id=" + PROJECT_ID,
+            "query",
+            "--label=datacloud:antigravity",
+            "--use_legacy_sql=false",
+            dedup_sql,
+        ],
+        check=True,
+        env=env,
+    )
+
+    print("\n==================================================================")
+    print(f" ==> SUCCESS! BigQuery table {table_target} is populated & deduplicated!")
+    print(f"     Total records loaded in snapshot: {valid_count}")
     print("==================================================================")
 
 

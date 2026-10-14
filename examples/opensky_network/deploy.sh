@@ -5,12 +5,14 @@
 #
 set -e
 
+export CLOUDSDK_METRICS_ENVIRONMENT="${CLOUDSDK_METRICS_ENVIRONMENT:+$CLOUDSDK_METRICS_ENVIRONMENT }datacloud.antigravity"
+
 # ==============================================================================
 # 1. Configuration & Defaults
 # ==============================================================================
 PROJECT_ID="${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null)}"
 REGION="${GCP_REGION:-us-central1}"
-GCS_BUCKET="${GCS_BUCKET:-${PROJECT_ID}-raw-lake}"
+GCS_BUCKET="${GCS_BUCKET:-opensky-staging-bucket-cat-demo}"
 BQ_DATASET="${BQ_DATASET:-opensky}"
 BQ_TABLE="${BQ_TABLE:-aircraft_states}"
 
@@ -43,7 +45,7 @@ fi
 # Ensure BigQuery dataset exists
 if ! bq show "${PROJECT_ID}:${BQ_DATASET}" &>/dev/null; then
     echo "==> Creating BigQuery dataset ${PROJECT_ID}:${BQ_DATASET}..."
-    bq --location="${REGION}" mk --dataset "${PROJECT_ID}:${BQ_DATASET}" || true
+    bq --location="${REGION}" mk --label=datacloud:antigravity --dataset "${PROJECT_ID}:${BQ_DATASET}" || true
 fi
 
 # ==============================================================================
@@ -60,7 +62,8 @@ gcloud functions deploy "${FUNCTION_NAME}" \
     --trigger-http \
     --no-allow-unauthenticated \
     --memory=1GiB \
-    --timeout=300s \
+    --timeout=540s \
+    --update-labels=datacloud=antigravity \
     --set-env-vars="GCP_PROJECT=${PROJECT_ID},GCS_BUCKET=${GCS_BUCKET},BQ_DATASET=${BQ_DATASET},BQ_TABLE=${BQ_TABLE}"
 
 # Retrieve Function URI
@@ -82,6 +85,7 @@ if gcloud scheduler jobs describe "${SCHEDULER_JOB_NAME}" --location="${REGION}"
         --schedule="${CRON_SCHEDULE}" \
         --uri="${FUNCTION_URI}?corridor=global" \
         --http-method=POST \
+        --attempt-deadline=540s \
         --oidc-service-account-email="${SERVICE_ACCOUNT}"
 else
     echo "==> Creating new Cloud Scheduler job..."
@@ -90,6 +94,7 @@ else
         --schedule="${CRON_SCHEDULE}" \
         --uri="${FUNCTION_URI}?corridor=global" \
         --http-method=POST \
+        --attempt-deadline=540s \
         --oidc-service-account-email="${SERVICE_ACCOUNT}"
 fi
 
@@ -98,5 +103,5 @@ echo "==> Deployment Complete!"
 echo "Function URI: ${FUNCTION_URI}"
 echo ""
 echo "To test trigger manually right now:"
-echo "curl -X POST \"${FUNCTION_URI}?corridor=global\" -H \"Authorization: Bearer \$(gcloud auth print-identity-token)\""
+echo "gcloud scheduler jobs run ${SCHEDULER_JOB_NAME} --location=${REGION}"
 echo "=================================================================="
