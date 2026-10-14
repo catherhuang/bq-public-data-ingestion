@@ -48,9 +48,9 @@ When asked to build an ingestion pipeline for a dataset:
 
 ### BigQuery Loading
 - **Load Jobs Over Streaming Inserts:** Always use BigQuery `LoadJobs` (`client.load_table_from_uri`) instead of streaming inserts (`insert_rows_json`) to eliminate streaming costs and guarantee atomic loads.
-- **Write Disposition:**
+- **Write Disposition & Idempotent Deduplication:**
   - `WRITE_TRUNCATE`: For daily snapshot/reference lists where the source provides the entire current list (e.g., OFAC SDN, CISA KEV active catalog).
-  - `WRITE_APPEND`: For incremental time-series (e.g., AGSI+ storage numbers, earthquake events, weather, trade flows).
+  - `WRITE_APPEND`: For incremental time-series (e.g., IMF PortWatch, AGSI+ storage numbers, earthquake events, weather, trade flows). When using a rolling lookback window (e.g. `days=14`), always run an idempotent deduplication `DELETE` statement on the primary composite key `(date, entity_id)` keeping the latest `_ingested_at` timestamp so overlapping lookback windows never produce duplicate rows.
 - **Partitioning & Clustering:**
   - Date/Timestamp column partitioning (e.g., `_PARTITIONDATE` or source transaction/event date).
   - Cluster by primary entity IDs (e.g., country code, commodity code, airport code, CVE ID).

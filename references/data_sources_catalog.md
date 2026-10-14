@@ -27,11 +27,11 @@ This catalog maps external public data sources to their respective ingestion arc
 ### 2. IMF PortWatch
 - **Archetype:** A (Direct CSV Mirror) or B (ArcGIS REST Feature Layer)
 - **Primary Bulk URL:** Mirrored weekly on Humanitarian Data Exchange (HDX) / PortWatch portal: `https://portwatch.imf.org`
-- **API Endpoint:** ArcGIS Feature Service REST API: `https://services9.arcgis.com/.../FeatureServer/0/query?f=json&where=1=1`
+- **API Endpoint:** ArcGIS Feature Service REST API: `https://services9.arcgis.com/weJ1QsnbMYJlCHdG/arcgis/rest/services/Daily_Chokepoints_Data/FeatureServer/0/query` (and `Daily_Ports_Data`)
 - **Auth:** None required for public portal / HDX mirrors.
-- **Payload Format:** CSV / GeoJSON
-- **Update Cadence:** Weekly on Tuesdays at 9:00 AM ET (`0 14 * * 2`)
-- **BigQuery Schema Strategy:** Partition by `date`, cluster by `port_id`, `vessel_type`.
+- **Payload Format:** CSV / GeoJSON / ArcGIS JSON
+- **Update Cadence:** Published mid-week (typically Wednesdays ~12:30–14:20 UTC); schedule daily check at 15:00 UTC (`0 15 * * *`) with a 14-day rolling lookback (`days=14`).
+- **BigQuery Schema Strategy:** Partition by `date`, cluster by `portname`, `portid` (chokepoints) or `country`, `ISO3`, `portname` (ports). Deduplicate by `(date, portid)` keeping latest `_ingested_at`.
 
 ### 3. JODI (Joint Organisations Data Initiative - Oil & Gas)
 - **Archetype:** A (Direct Compressed CSV)

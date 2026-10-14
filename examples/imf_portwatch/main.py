@@ -152,6 +152,30 @@ def stage_and_load(
     logger.info(f"Triggered BigQuery LoadJob {load_job.job_id} for {table_ref}...")
     load_job.result()  # Wait for load job to complete
 
+    # 3. Idempotent Deduplication: Ensure unique (date, portid) keeping latest _ingested_at
+    if write_disposition == bigquery.WriteDisposition.WRITE_APPEND:
+        dedup_sql = f"""
+        DELETE FROM `{table_ref}` t
+        WHERE STRUCT(t.date, t.portid, t._ingested_at) IN (
+            SELECT AS STRUCT date, portid, _ingested_at
+            FROM (
+                SELECT
+                    date,
+                    portid,
+                    _ingested_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY date, portid
+                        ORDER BY _ingested_at DESC, ObjectId DESC
+                    ) AS rn
+                FROM `{table_ref}`
+            )
+            WHERE rn > 1
+        )
+        """
+        logger.info(f"Running idempotent deduplication on {table_ref}...")
+        dedup_job = bq_client.query(dedup_sql)
+        dedup_job.result()
+
     return {
         "layer": layer_key,
         "table": table_ref,

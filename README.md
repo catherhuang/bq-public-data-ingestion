@@ -46,7 +46,7 @@ The skill includes pre-mapped ingestion blueprints in [`references/data_sources_
 | Data Source | Category | Archetype | Native Format | Update Cadence |
 | :--- | :--- | :--- | :--- | :--- |
 | **UN Comtrade** | Global Trade Flows | Archive ZIP / API | Zipped CSV | Monthly / Annual |
-| **IMF PortWatch** | Maritime Trade & Chokepoints | REST / GeoJSON | ArcGIS FeatureServer / CSV | Weekly (Tuesdays) |
+| **IMF PortWatch** | Maritime Trade & Chokepoints | REST / GeoJSON | ArcGIS FeatureServer / CSV | Daily check (15:00 UTC) |
 | **JODI** | Oil & Gas Production/Flows | Bulk File | Zipped CSV | Monthly |
 | **U.S. EIA** | Energy & Petroleum Stats | REST API v2 / Bulk | JSON / Manifest ZIP | Weekly / Monthly |
 | **GIE AGSI+** | European Gas Storage | REST API | JSON | Daily (20:00 CET) |
