@@ -157,7 +157,7 @@ bq-public-data-ingestion/
 ## 🚢 Reference Implementations
 
 * **IMF PortWatch ([`examples/imf_portwatch/`](examples/imf_portwatch/)):** Extracts daily maritime activity across 2,000+ global ports and 28 strategic chokepoints (Suez, Panama, Hormuz, Bab el-Mandeb) from the official IMF PortWatch ArcGIS REST services into BigQuery on a daily 15:00 UTC schedule with 14-day rolling lookback and idempotent `(date, portid)` deduplication.
-* **OpenSky Network ([`examples/opensky_network/`](examples/opensky_network/)):** Extracts live global ADS-B aircraft state vectors (`aircraft_states`), partitions by `snapshot_date`, and clusters by `origin_country, callsign, icao24`.
+* **OpenSky Network ([`examples/opensky_network/`](examples/opensky_network/)):** Extracts live global ADS-B aircraft state vectors (`aircraft_states`) on an hourly schedule (`0 * * * *`), includes automatic cloud-compatible fallback (`opendata.adsb.fi` across 12 global air cargo corridors) when `opensky-network.org` blocks cloud egress IPs, partitions by `snapshot_date`, clusters by `origin_country, callsign, icao24`, and deduplicates idempotently on `(snapshot_date, icao24)`.
 
 ---
 

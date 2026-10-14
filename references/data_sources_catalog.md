@@ -143,10 +143,12 @@ This catalog maps external public data sources to their respective ingestion arc
 - **BigQuery Schema Strategy:** Partition by `date_start` (Date), cluster by `country`, `conflict_name`, `type_of_violence`.
 
 ### 15. OpenSky Network (ADS-B)
-- **Archetype:** B (Live REST API) or D (Monthly Research Parquet Dumps)
-- **Live Endpoint:** `https://opensky-network.org/api/states/all`
+- **Archetype:** B (Live REST API with Cloud Fallback) or D (Monthly Research Parquet Dumps)
+- **Live Primary Endpoint:** `https://opensky-network.org/api/states/all`
+- **Cloud-Compatible Fallback Endpoint:** `https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{dist}` (used automatically when OpenSky drops TCP connections from cloud provider egress IPs)
 - **Historical Dumps:** OpenSky data repository (Parquet / CSV dumps by month)
-- **Auth:** Optional HTTP Basic Auth for higher rate limits.
+- **Auth:** Optional HTTP Basic Auth for higher rate limits on OpenSky.
 - **Payload Format:** JSON (live states) or Parquet (historical)
-- **Update Cadence:** Continuous/Hourly for live, Monthly for historical archives.
-- **BigQuery Schema Strategy:** Partition by `timestamp`, cluster by `icao24`, `callsign`.
+- **Update Cadence:** Hourly (`0 * * * *`) for live snapshots, Monthly for historical archives.
+- **BigQuery Schema Strategy:** Partition by `snapshot_date` (DAY), cluster by `origin_country`, `callsign`, `icao24`, with post-load idempotent deduplication on `(snapshot_date, icao24)` keeping the latest `snapshot_time` (preferring non-null `callsign`).
+
